@@ -65,15 +65,15 @@ def updating_writer(a):
     :param arguments: The input arguments to the call
     """
     msg = subscribe.simple("AMIS/Leistung", hostname="localhost",
-    port=1883, auth={'username':"loxberry",'password':"nsQMdsC1Ok47v6Ok"})
+    port=1883, auth={'username':"loxberry",'password':"XXX"})
     print(msg.topic+" "+str(msg.payload))
 
     msg1 = subscribe.simple("AMIS/Netzbezug_total", hostname="localhost",
-    port=1883, auth={'username':"loxberry",'password':"nsQMdsC1Ok47v6Ok"})
+    port=1883, auth={'username':"loxberry",'password':"XXX"})
     print("%s %s" % (msg1.topic, msg1.payload))
 
     msg2 = subscribe.simple("AMIS/Netzeinspeisung_total", hostname="localhost",
-    port=1883, auth={'username':"loxberry",'password':"nsQMdsC1Ok47v6Ok"})
+    port=1883, auth={'username':"loxberry",'password':"XXX"})
     print("%s %s" % (msg2.topic, msg2.payload))
 
     #Converting current power consumption out of MQTT payload to Modbus register
