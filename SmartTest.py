@@ -22,8 +22,9 @@ from pymodbus.datastore import ModbusSequentialDataBlock
 from pymodbus.datastore import ModbusSparseDataBlock
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
 from pymodbus.transaction import ModbusRtuFramer, ModbusAsciiFramer
-
+from threading import Lock
 import struct
+import time
 
 # --------------------------------------------------------------------------- #
 # import the twisted libraries we need
@@ -44,13 +45,36 @@ log.setLevel(logging.DEBUG)
 import paho.mqtt.client as mqtt
 import paho.mqtt.subscribe as subscribe
 
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
-    client.subscribe("AMIS/#")
+lock = Lock()
 
-def on_message(client, userdata, msg):
-    print(msg.topic+" "+str(msg.payload))
+leistung = "0"
+einspeisung = "0"
+netzbezug = "0"
 
+mqttc = mqtt.Client()
+mqttc.username_pw_set("loxberry", "nsQMdsC1Ok47v6Ok")
+mqttc.connect("localhost")
+
+mqttc.subscribe("AMIS/Leistung")
+mqttc.subscribe("AMIS/Netzbezug_total")
+mqttc.subscribe("AMIS/Netzeinspeisung_total")
+
+def on_message(client, userdata, message):
+    global leistung
+    global einspeisung
+    global netzbezug
+    print("Received message '" + str(message.payload) + "' on topic '"
+        + message.topic + "' with QoS " + str(message.qos))
+    lock.acquire()
+    if message.topic == "AMIS/Leistung":
+       leistung = message.payload
+    elif message.topic == "AMIS/Netzbezug_total":
+        netzbezug = message.payload
+    elif message.topic == "AMIS/Netzeinspeisung_total":
+        einspeisung = message.payload
+    lock.release()
+
+mqttc.on_message = on_message
 
 # --------------------------------------------------------------------------- #
 # define your callback process
@@ -64,21 +88,11 @@ def updating_writer(a):
 
     :param arguments: The input arguments to the call
     """
-    msg = subscribe.simple("AMIS/Leistung", hostname="localhost",
-    port=1883, auth={'username':"loxberry",'password':"XXX"})
-    print(msg.topic+" "+str(msg.payload))
-
-    msg1 = subscribe.simple("AMIS/Netzbezug_total", hostname="localhost",
-    port=1883, auth={'username':"loxberry",'password':"XXX"})
-    print("%s %s" % (msg1.topic, msg1.payload))
-
-    msg2 = subscribe.simple("AMIS/Netzeinspeisung_total", hostname="localhost",
-    port=1883, auth={'username':"loxberry",'password':"XXX"})
-    print("%s %s" % (msg2.topic, msg2.payload))
+    mqttc.loop_start()
 
     #Converting current power consumption out of MQTT payload to Modbus register
-
-    electrical_power_float = float(msg.payload) #extract value out of payload
+    lock.acquire()
+    electrical_power_float = float(leistung) #extract value out of payload
     print electrical_power_float
     electrical_power_hex = struct.pack('>f', electrical_power_float).encode('hex') #convert float value to float32 and further to hex
     electrical_power_hex_part1 = str(electrical_power_hex)[0:4] #extract first register part (hex)
@@ -88,7 +102,7 @@ def updating_writer(a):
 
     #Converting total import value of smart meter out of MQTT payload into Modbus register
 
-    total_import_float = int(msg1.payload)
+    total_import_float = int(netzbezug)
     print total_import_float
     total_import_hex = struct.pack('>f', total_import_float).encode("hex")
     total_import_hex_part1 = str(total_import_hex)[0:4]
@@ -98,13 +112,15 @@ def updating_writer(a):
 
     #Converting total export value of smart meter out of MQTT payload into Modbus register
 
-    total_export_float = int(msg2.payload)
+    total_export_float = int(einspeisung)
     print total_export_float
     total_export_hex = struct.pack('>f', total_export_float).encode("hex")
     total_export_hex_part1 = str(total_export_hex)[0:4]
     total_export_hex_part2 = str(total_export_hex)[4:8]
     exp_int1 = int(total_export_hex_part1, 16)
     exp_int2 = int(total_export_hex_part2, 16)
+
+    lock.release()
 
     log.debug("updating the context")
     context = a[0]
@@ -218,5 +234,17 @@ def run_updating_server():
     loop.start(time, now=False) # initially delay by time
     StartSerialServer(context, port='/dev/ttyUSB1', baudrate=9600, stopbits=1, bytesize=8, framer=ModbusRtuFramer)
 
-if __name__ == "__main__":
-    run_updating_server()
+values_ready = False
+
+while not values_ready:
+      print("warten")
+      print(netzbezug)
+      time.sleep(1)
+      lock.acquire()
+      if netzbezug  != '0' and einspeisung != '0':
+         print("Datenda")
+         values_ready = True
+      lock.release()
+print("starten")
+print(netzbezug)
+run_updating_server()
