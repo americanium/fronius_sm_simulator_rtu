@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 """
-Pymodbus Server With Updating Thread
+Fronius Smart Meter Simulator (MODBUS) Version 1.0
 --------------------------------------------------------------------------
 
-This is an example of having a background thread updating the
-context while the server is operating. This can also be done with
-a python thread::
+This script simulates a Fronius Smart Meter for providing necessary 
+information to inverters (e.g. SYMO, SYMO HYBRID) for statistics. 
+Necessary information is provied via MQTT and translated to MODBUS RTU
 
-    from threading import Thread
-
-    thread = Thread(target=updating_writer, args=(context,))
-    thread.start()
 """
 # --------------------------------------------------------------------------- #
 # import the modbus libraries we need
@@ -25,6 +21,10 @@ from pymodbus.transaction import ModbusRtuFramer, ModbusAsciiFramer
 from threading import Lock
 import struct
 import time
+import json
+import getopt
+import sys
+import socket
 
 # --------------------------------------------------------------------------- #
 # import the twisted libraries we need
@@ -40,6 +40,93 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 # --------------------------------------------------------------------------- #
+# handle start arguments
+# --------------------------------------------------------------------------- #
+inputs = None
+outputs = None
+loglevel=logging.ERROR
+logfile=""
+logfileArg = ""
+lbhomedir = ""
+configfile = ""
+opts, args = getopt.getopt(sys.argv[1:], 'f:l:c:h:', ['logfile=', 'loglevel=', 'configfile=', 'lbhomedir='])
+for opt, arg in opts:
+    if opt in ('-f', '--logfile'):
+        logfile=arg
+        logfileArg = arg
+    elif opt in ('-l', '--loglevel'):
+        loglevel=map_loglevel(arg)
+    elif opt in ('-c', '--configfile'):
+        configfile=arg
+    elif opt in ('-h', '--lbhomedir'):
+        lbhomedir=arg
+
+# --------------------------------------------------------------------------- #
+# get configuration from mqtt broker and store config in mqttconf variable
+# --------------------------------------------------------------------------- #
+mqttconf = None;
+
+MQTT_DEFAULT_PORT = "1883"
+
+#try:
+with open(lbhomedir + '/data/system/plugindatabase.json') as json_plugindatabase_file:
+        plugindatabase = json.load(json_plugindatabase_file)
+        mqttconfigdir = plugindatabase['plugins']['07a6053111afa90479675dbcd29d54b5']['directories']['lbpconfigdir']
+
+        mqttPluginconfig = None
+        with open(mqttconfigdir + '/mqtt.json') as json_mqttconfig_file:
+            mqttPluginconfig = json.load(json_mqttconfig_file)
+
+        mqttcred = None
+        with open(mqttconfigdir + '/cred.json') as json_mqttcred_file:
+            mqttcred = json.load(json_mqttcred_file)
+
+        mqttuser = mqttcred['Credentials']['brokeruser']
+        mqttpass = mqttcred['Credentials']['brokerpass']
+        mqttaddressArray = mqttPluginconfig['Main']['brokeraddress'].split(":")
+        mqttPort = MQTT_DEFAULT_PORT
+        if len(mqttaddressArray) > 1:
+            mqttPort = int(mqttaddressArray[1])
+
+        mqttconf = {
+            'username':mqttuser,
+            'password':mqttpass,
+            'address': mqttaddressArray[0],
+            'port': mqttPort
+        }
+
+
+#    _LOGGER.debug("MQTT config" + str(mqttconf))
+#except Exception as e:
+#    _LOGGER.exception(str(e))
+
+# If no mqtt config found leave the script with log entry
+#if mqttconf is None:
+#    _LOGGER.critical("No MQTT config found. Daemon stop working")
+#    sys.exit(-1)
+
+# --------------------------------------------------------------------------- #
+# Reading custom parameters out of paramter file
+# --------------------------------------------------------------------------- #
+import ConfigParser
+
+config = ConfigParser.RawConfigParser()
+config.read(lbhomedir + '/config/plugins/frosim_folder/config.cfg')
+
+MQTT_TOPIC_CONSUMPTION  = config.get('CONFIGURATION','TOPIC_CONSUMPTION')
+MQTT_TOPIC_TOTAL_IMPORT = config.get('CONFIGURATION','TOPIC_TOTAL_IMPORT')
+MQTT_TOPIC_TOTAL_EXPORT = config.get('CONFIGURATION','TOPIC_TOTAL_EXPORT')
+corrfactor = config.get('CONFIGURATION','CORRFACTOR')
+i_corrfactor = int(corrfactor)
+serialport = config.get('CONFIGURATION','SERIAL_PORT')
+
+print MQTT_TOPIC_TOTAL_EXPORT
+print MQTT_TOPIC_TOTAL_IMPORT
+print MQTT_TOPIC_CONSUMPTION
+print corrfactor
+print serialport
+
+# --------------------------------------------------------------------------- #
 # configure MQTT service
 # --------------------------------------------------------------------------- #
 import paho.mqtt.client as mqtt
@@ -51,28 +138,42 @@ leistung = "0"
 einspeisung = "0"
 netzbezug = "0"
 
-mqttc = mqtt.Client()
-mqttc.username_pw_set("loxberry", "nsQMdsC1Ok47v6Ok")
-mqttc.connect("localhost")
+ti_int1 = "0"
+ti_int2 = "0"
+exp_int1 = "0"
+exp_int2 = "0"
+ep_int1 = "0"
+ep_int2 = "0"
 
-mqttc.subscribe("AMIS/Leistung")
-mqttc.subscribe("AMIS/Netzbezug_total")
-mqttc.subscribe("AMIS/Netzeinspeisung_total")
+mqttc = mqtt.Client()
+mqttc.username_pw_set(mqttconf['username'], mqttconf['password'])
+mqttc.connect(mqttconf['address'], mqttconf['port'], 60)
+
+mqttc.subscribe(MQTT_TOPIC_CONSUMPTION)
+mqttc.subscribe(MQTT_TOPIC_TOTAL_IMPORT)
+mqttc.subscribe(MQTT_TOPIC_TOTAL_EXPORT)
+
+mqttc.loop_start()
 
 def on_message(client, userdata, message):
     global leistung
     global einspeisung
     global netzbezug
+
     print("Received message '" + str(message.payload) + "' on topic '"
         + message.topic + "' with QoS " + str(message.qos))
+
     lock.acquire()
-    if message.topic == "AMIS/Leistung":
+
+    if message.topic == MQTT_TOPIC_CONSUMPTION:
        leistung = message.payload
-    elif message.topic == "AMIS/Netzbezug_total":
+    elif message.topic == MQTT_TOPIC_TOTAL_IMPORT:
         netzbezug = message.payload
-    elif message.topic == "AMIS/Netzeinspeisung_total":
+    elif message.topic == MQTT_TOPIC_TOTAL_EXPORT:
         einspeisung = message.payload
+
     lock.release()
+
 
 mqttc.on_message = on_message
 
@@ -88,7 +189,23 @@ def updating_writer(a):
 
     :param arguments: The input arguments to the call
     """
-    mqttc.loop_start()
+
+    global ep_int1
+    global ep_int2
+    global exp_int1
+    global exp_int2
+    global ti_int1
+    global ti_int2
+
+    #Considering correction factor 
+    print("Korrigierte Werte")
+    float_netzbezug = float(netzbezug)
+    netzbezug_corr = float_netzbezug*i_corrfactor
+    print netzbezug_corr
+
+    float_einspeisung = float(einspeisung)
+    einspeisung_corr = float_einspeisung*i_corrfactor
+    print einspeisung_corr
 
     #Converting current power consumption out of MQTT payload to Modbus register
     lock.acquire()
@@ -102,7 +219,7 @@ def updating_writer(a):
 
     #Converting total import value of smart meter out of MQTT payload into Modbus register
 
-    total_import_float = int(netzbezug)
+    total_import_float = int(netzbezug_corr)
     print total_import_float
     total_import_hex = struct.pack('>f', total_import_float).encode("hex")
     total_import_hex_part1 = str(total_import_hex)[0:4]
@@ -112,7 +229,7 @@ def updating_writer(a):
 
     #Converting total export value of smart meter out of MQTT payload into Modbus register
 
-    total_export_float = int(einspeisung)
+    total_export_float = int(einspeisung_corr)
     print total_export_float
     total_export_hex = struct.pack('>f', total_export_float).encode("hex")
     total_export_hex_part1 = str(total_export_hex)[0:4]
@@ -156,14 +273,14 @@ def updating_writer(a):
               0, 0,               #AC power factor L1 [cosphi]
               0, 0,               #AC power factor L2 [cosphi]
               0, 0,               #AC power factor L3 [cosphi]
-              exp_int1, exp_int2, #Total Watt Hours Exportet [Wh] ==> 11968Wh == JSON: EnergyReal_WAC_Minus_Absolute
-              0, 0,               #Watt Hours Exported L1 [Wh] ==> 4000 ==> JSON: EnergyReal_WAC_Phase_1_Produced
-              0, 0,               #Watt Hours Exported L2 [Wh] ==> 4000 ==> JSON: EnergyReal_WAC_Phase_2_Produced
-              0, 0,               #Watt Hours Exported L3 [Wh] ==> 4000 ==> JSON: EnergyReal_WAC_Phase_3_Produced
-              ti_int1, ti_int2,   #Total Watt Hours Imported [Wh]  1500Wh JSON: EnergyReal_WAC_Plus_Absolute
-              0, 0,               #Watt Hours Imported L1 [Wh] 10000 ==> JSON: EnergyReal_WAC_Phase_1_Consumed
-              0, 0,               #Watt Hours Imported L2 [Wh] 5000 ==> JSON: EnergyReal_WAC_Phase_2_Consumed
-              0, 0,               #Watt Hours Imported L3 [Wh] 5000 ==> JSON: EnergyReal_WAC_Phase_3_Consumed
+              exp_int1, exp_int2, #Total Watt Hours Exportet [Wh]
+              0, 0,               #Watt Hours Exported L1 [Wh]
+              0, 0,               #Watt Hours Exported L2 [Wh]
+              0, 0,               #Watt Hours Exported L3 [Wh]
+              ti_int1, ti_int2,   #Total Watt Hours Imported [Wh]
+              0, 0,               #Watt Hours Imported L1 [Wh]
+              0, 0,               #Watt Hours Imported L2 [Wh]
+              0, 0,               #Watt Hours Imported L3 [Wh]
               0, 0,               #Total VA hours Exported [VA]
               0, 0,               #VA hours Exported L1 [VA]
               0, 0,               #VA hours Exported L2 [VA]
@@ -173,36 +290,29 @@ def updating_writer(a):
               0, 0,               #VA hours imported L2 [VAr]
               0, 0                #VA hours imported L3 [VAr]
 ]
-    #log.debug("new values: " + str(dec_1) + str(dec_2))
+
     context[slave_id].setValues(register, address, values)
 
 def run_updating_server():
     # ----------------------------------------------------------------------- # 
     # initialize your data store
     # ----------------------------------------------------------------------- # 
-    
+    lock.acquire()
+ 
     store = ModbusSlaveContext(
         di=ModbusSequentialDataBlock(0, [15]*100),
         co=ModbusSequentialDataBlock(0, [15]*100),
         hr=ModbusSparseDataBlock({
-        
-        #00001:   [0],
-        #00002:   [2300],
-        #00012:   [240],
+
         40001:  [21365, 28243], 
         40003:  [1],
         40004:  [65],
-        40005:  [70,114,111,110,105,117,115,0,0,0,
-                0,0,0,0,0,0,83,109,97,114,
-                116,32,77,101,116,101,114,32,54,51,
-                65,0,0,0,0,0,0,0,0,0,
-                0,0,0,0,0,0,0,0,49,54,
-                50,50,48,49,49,56,0,0,0,0,
-                0,0,0,0,
-
-                0,240],
-        40069: [240], 
-        40010: [0,0,0,0,0,0,0,0,0,0],
+        40005:  [70,114,111,110,105,117,115,0,0,0,0,0,0,0,0,0,         #Manufacturer "Fronius"
+		83,109,97,114,116,32,77,101,116,101,114,32,54,51,65,0, #Device Model "Smart Meter 63A"
+		0,0,0,0,0,0,0,0,                                       #Options N/A
+                0,0,0,0,0,0,0,0,                                       #Software Version  N/A
+		48,48,48,48,48,48,48,49,0,0,0,0,0,0,0,0,               #Serial Number: 00000001 (49,54,50,50,48,49,49,56
+                240],                                                  #Modbus TCP Address: 240
         40070: [213],
         40071: [124], 
         40072: [0,0,0,0,0,0,0,0,0,0,
@@ -226,25 +336,25 @@ def run_updating_server():
 	ir=ModbusSequentialDataBlock(0, [15]*100))
     context = ModbusServerContext(slaves=store, single=True)
 
+    lock.release()
+
     # ----------------------------------------------------------------------- # 
     # run the server you want
     # ----------------------------------------------------------------------- # 
     time = 5  # 5 seconds delay
     loop = LoopingCall(f=updating_writer, a=(context,))
-    loop.start(time, now=False) # initially delay by time
-    StartSerialServer(context, port='/dev/ttyUSB1', baudrate=9600, stopbits=1, bytesize=8, framer=ModbusRtuFramer)
+    loop.start(time, now=True) # initially delay by time
+
+    StartSerialServer(context, port=serialport, baudrate=9600, stopbits=1, bytesize=8, framer=ModbusRtuFramer)
 
 values_ready = False
 
 while not values_ready:
-      print("warten")
-      print(netzbezug)
+      print("Warten auf Daten von MQTT Broker")
       time.sleep(1)
       lock.acquire()
       if netzbezug  != '0' and einspeisung != '0':
-         print("Datenda")
+         print("Daten vorhanden. Starte Modbus Server")
          values_ready = True
       lock.release()
-print("starten")
-print(netzbezug)
 run_updating_server()
