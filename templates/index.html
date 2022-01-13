@@ -1,0 +1,162 @@
+<script>
+
+var formowfs = '<TMPL_VAR FORM_OWFS>';
+
+$(function() {
+	
+	getconfig();
+
+	if (formowfs) {
+		// PIDs
+		setInterval(function(){ update_pids(); }, 3000);
+		update_pids();
+	}
+}
+
+§function update_pids()
+{
+
+	$.ajax( { 
+			type: 'POST',
+			data: { 
+				ajax: 'getpids', 
+			}
+		} )
+	.done(function(resp) {
+		console.log( "owfsform getpids", "success", resp );
+		if(resp.pids.owserver != null) {
+			$("#owserverstate").attr("style", "color:green").html("<TMPL_VAR OWFS.MSG_OWSERVER_RUNNING> (PID "+resp.pids.owserver+")");
+		} else {
+			$("#owserverstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_OWSERVER_NOTRUNNING>");
+		}
+		if(resp.pids.owhttpd != null) {
+			$("#owhttpdstate").attr("style", "color:green").html("<TMPL_VAR OWFS.MSG_OWHTTPD_RUNNING> (PID "+resp.pids.owhttpd+")");
+		} else {
+			$("#owhttpdstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_OWHTTPD_NOTRUNNING>");
+		}
+		if(resp.pids.owfs2mqtt != null) {
+			$("#owfs2mqttstate").attr("style", "color:green").html("<TMPL_VAR OWFS.MSG_OWFS2MQTT_RUNNING> (PID "+resp.pids.owfs2mqtt+")");
+		} else {
+			$("#owfs2mqttstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_OWFS2MQTT_NOTRUNNING>");
+		}
+
+	})
+	.fail(function(resp) {
+		$("#owserverstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_FAILED_PID>");
+		$("#owhttpdstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_FAILED_PID>");
+		$("#owfs2mqttstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_FAILED_PID>");
+	})
+	.always(function(resp) {
+		console.log( "owfsform getpids", "finished", resp );
+	});
+
+}
+</script>
+
+<div class="wide">Fronius SmartMeter Simulator</div>
+
+
+<p><TMPL_VAR BASIC.FROSIM_GENERAL_DESCRIPTION></p>
+<p><TMPL_VAR BASIC.FROSIM_CORR_DESCRIPTION></p>
+<p><b><TMPL_VAR BASIC.FROSIM_WARNING></bold></b></p>
+<br>
+
+<TMPL_VAR frmStart>
+
+<center>
+		<div style="display:flex;align-items:center;justify-content:center;width:100%">
+			<center>
+			<span id="owserverstate"></span>
+			&nbsp; &nbsp; &nbsp; &nbsp;
+			<a href="javascript:restartOWFS();" id="btnrestartowfs" data-role="button" data-inline="true" data-icon="refresh" data-mini="true"
+						data-transition="flow"><TMPL_VAR OWFS.BUTTON_RESTART></a>
+			</center>
+        	</div>
+	</center>
+
+
+<table class="formtable" border="0" width="100%">
+	<tr>
+		<td width="25%">
+		<label id="lblMQTTTopicConsumption"><TMPL_VAR lblMQTTTopicConsumption></label>	
+		</td>
+		<td width="50%">
+			<TMPL_VAR txtMQTTTopicConsumption>
+		</td>
+		<td width="25%">
+			&nbsp;
+		</td>
+	<tr>
+
+	<tr>
+	<td width="25%">
+		<label id="lblMQTTTopicImport"><TMPL_VAR lblMQTTTopicImport></label>	
+		</td>
+		<td width="50%">
+			<TMPL_VAR txtMQTTTopicImport>
+		</td>
+		<td width="25%">
+			&nbsp;
+		</td>
+	</tr>
+	
+	<td width="25%">
+		<label id="lblMQTTTopicExport"><TMPL_VAR lblMQTTTopicExport></label>	
+		</td>
+		<td width="50%">
+			<TMPL_VAR txtMQTTTopicExport>
+		</td>
+		<td width="25%">
+			&nbsp;
+		</td>
+	</tr>
+
+	<td width="25%">
+		<label id="lblCorrectionFactor"><TMPL_VAR lblCorrectionFactor></label>	
+		</td>
+		<td width="50%">
+			<TMPL_VAR txtCorrectionFactor>
+		</td>
+		<td width="25%">
+			&nbsp;
+		</td>
+	</tr>
+
+	<td width="25%">
+		<label id="lblSerialPort"><TMPL_VAR lblSerialPort></label>	
+		</td>
+		<td width="50%">
+			<TMPL_VAR txtSerialPort>
+		</td>
+		<td width="25%">
+			&nbsp;
+		</td>
+	</tr>
+
+<tr>
+	<td width="25%">
+		&nbsp;
+	</td>
+	<td width="50%">
+		<table border="0" width="100%">
+			<tr>
+				<td width="49%"><TMPL_VAR btnSave></td>
+				<td>&nbsp;</td>
+				<td width="49%"><TMPL_VAR btnReStart></td>
+			</tr>
+		</table>
+
+<tr>
+	<td width="25%">
+	&nbsp;
+	</td>
+	<td width="50%">
+	<TMPL_VAR btnStop>
+	</td>
+</tr>
+</table>
+
+<TMPL_VAR PID> <TMPL_VAR STATUS>
+
+<TMPL_VAR frmEnd>
+

@@ -118,7 +118,7 @@ MQTT_TOPIC_TOTAL_IMPORT = config.get('CONFIGURATION','TOPIC_TOTAL_IMPORT')
 MQTT_TOPIC_TOTAL_EXPORT = config.get('CONFIGURATION','TOPIC_TOTAL_EXPORT')
 corrfactor = config.get('CONFIGURATION','CORRFACTOR')
 i_corrfactor = int(corrfactor)
-serialport = config.get('CONFIGURATION','SERIAL_PORT')
+serialport = config.get('CONFIGURATION',"SERIALPORT')
 
 print MQTT_TOPIC_TOTAL_EXPORT
 print MQTT_TOPIC_TOTAL_IMPORT

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+PLUGINNAME=REPLACELBPPLUGINDIR
+LBHOMEDIR=REPLACELBHOMEDIR
+
+su loxberry -c "/usr/bin/python $LBHOMEDIR/bin/plugins/$PLUGINNAME/frsmsimulator.py -h $LBHOMEDIR > /opt/loxberry/debug1.txt 2>&1&"
+#/usr/bin/python $LBHOMEDIR/bin/plugins/$PLUGINNAME/frsmsimulator.py -h $LBHOMEDIR & 
+
+exit 0
