@@ -1,57 +1,101 @@
 <script>
 
-var formowfs = '<TMPL_VAR FORM_OWFS>';
-
 $(function() {
 	
-	getconfig();
+	// PIDs
+	setInterval(function(){ update_pids(); }, 3000);
+	update_pids();
 
-	if (formowfs) {
-		// PIDs
-		setInterval(function(){ update_pids(); }, 3000);
-		update_pids();
-	}
-}
+});
 
-§function update_pids()
+function update_pids()
 {
 
 	$.ajax( { 
 			type: 'POST',
+			url: './index.cgi',
 			data: { 
 				ajax: 'getpids', 
 			}
 		} )
-	.done(function(resp) {
-		console.log( "owfsform getpids", "success", resp );
-		if(resp.pids.owserver != null) {
-			$("#owserverstate").attr("style", "color:green").html("<TMPL_VAR OWFS.MSG_OWSERVER_RUNNING> (PID "+resp.pids.owserver+")");
+	.done(function(data) {
+		console.log( "update_pids", "success", data );
+		if (data.response) {
+			$("#servicestatus").attr("style", "background:#6dac20; color:black").html("<TMPL_VAR CONFIGURATION.serviceRunning> <span class='small'>PID: " + data.response + "</span>");
 		} else {
-			$("#owserverstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_OWSERVER_NOTRUNNING>");
-		}
-		if(resp.pids.owhttpd != null) {
-			$("#owhttpdstate").attr("style", "color:green").html("<TMPL_VAR OWFS.MSG_OWHTTPD_RUNNING> (PID "+resp.pids.owhttpd+")");
-		} else {
-			$("#owhttpdstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_OWHTTPD_NOTRUNNING>");
-		}
-		if(resp.pids.owfs2mqtt != null) {
-			$("#owfs2mqttstate").attr("style", "color:green").html("<TMPL_VAR OWFS.MSG_OWFS2MQTT_RUNNING> (PID "+resp.pids.owfs2mqtt+")");
-		} else {
-			$("#owfs2mqttstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_OWFS2MQTT_NOTRUNNING>");
+			$("#servicestatus").attr("style", "background:#FF6339; color:black").html("<TMPL_VAR CONFIGURATION.serviceStopped>");
 		}
 
 	})
-	.fail(function(resp) {
-		$("#owserverstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_FAILED_PID>");
-		$("#owhttpdstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_FAILED_PID>");
-		$("#owfs2mqttstate").attr("style", "color:red").html("<TMPL_VAR OWFS.MSG_FAILED_PID>");
+	.fail(function(data) {
+		console.log( "update_pids", "fail", data );
+		$("#servicestatus").attr("style", "background:#dfdfdf; color:red").html("<TMPL_VAR "COMMON.HINT_FAILED">");
 	})
-	.always(function(resp) {
-		console.log( "owfsform getpids", "finished", resp );
+	.always(function(data) {
+		console.log( "update_pids", "finish", data );
+	});
+}
+
+function servicerestart()
+{
+
+	$.ajax( { 
+			type: 'POST',
+			url: './index.cgi',
+			data: { 
+				ajax: 'servicerestart', 
+			}
+		} )
+	.done(function(data) {
+		console.log( "servicerestart", "success", data );
+	})
+	.fail(function(data) {
+		console.log( "servicerestart", "fail", data );
+	})
+	.always(function(data) {
+		console.log( "servicerestart", "finish", data );
+		update_pids();
 	});
 
 }
 </script>
+
+<style>
+.servicestatus {
+	display: grid;
+	grid-template-columns: auto auto auto auto;
+	grid-template-rows: 1fr;
+	gap: 0px 10px;
+	justify-content: center;
+	justify-items: center;
+	align-items: center;
+	text-shadow: none;
+}
+.status {
+	padding: 7px;
+	box-sizing: border-box;
+	border-radius: 5px 5px 5px 5px;
+	background: #dfdfdf;
+	border: 1px solid #7E7E7E;
+	width: 170px;
+	text-align: center;
+}
+</style>
+
+<div class="servicestatus">
+	<div>
+		Service Status:
+	</div>
+	<div class="status" id="servicestatus">
+		<TMPL_VAR CONFIGURATION.serviceUnknown>
+	</div>
+	<div>
+		<a href="#" onclick="servicerestart();return false;" class="ui-btn ui-icon-refresh ui-btn-icon-notext ui-corner-all">Refresh</a>
+	</div>
+
+</div>
+
+<br><br>
 
 <div class="wide">Fronius SmartMeter Simulator</div>
 

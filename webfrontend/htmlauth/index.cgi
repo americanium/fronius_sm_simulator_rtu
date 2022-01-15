@@ -16,35 +16,10 @@ $cgi->import_names('R');
 # Ab jetzt kann beispielsweise ein POST-Parameter 'form' ausgelesen werden mit $R::form.
  
  
-# Wir Übergeben die Titelzeile (mit Versionsnummer), einen Link ins Wiki und das Hilfe-Template.
-# Um die Sprache der Hilfe brauchen wir uns im Code nicht weiter zu kümmern.
-LoxBerry::Web::lbheader("Sample Plugin for Perl V$version", "http://www.loxwiki.eu/x/2wN7AQ", "help.html");
-  
 # Wir holen uns die Plugin-Config in den Hash %pcfg. Damit kannst du die Parameter mit $pcfg{'Section.Label'} direkt auslesen.
 #my %pcfg;
 #tie %pcfg, "Config::Simple", "$lbpconfigdir/pluginconfig.cfg";
 my $pcfg = new Config::Simple("$lbpconfigdir/config.cfg");
-
-
-# Wir initialisieren unser Template. Der Pfad zum Templateverzeichnis steht in der globalen Variable $lbptemplatedir.
-
-my $template = HTML::Template->new(
-    filename => "$lbptemplatedir/index.html",
-    global_vars => 1,
-    loop_context_vars => 1,
-    die_on_bad_params => 0,
-	associate => $cgi,
-);
-  
-# Jetzt lassen wir uns die Sprachphrasen lesen. Ohne Pfadangabe wird im Ordner lang nach language_de.ini, language_en.ini usw. gesucht.
-# Wir kümmern uns im Code nicht weiter darum, welche Sprache nun zu lesen wäre.
-# Mit der Routine wird die Sprache direkt ins Template übernommen. Sollten wir trotzdem im Code eine brauchen, bekommen
-# wir auch noch einen Hash zurück.
-my %L = LoxBerry::Web::readlanguage($template, "language.ini");
-  
-my $lastdata;
-my $status =1;
-my %pids;
 
 # ----------------------------------
 #our %navbar;
@@ -63,24 +38,49 @@ my %pids;
 
 # -----------------------------
 
-if( $q->{ajax} ) {
+if ( $R::ajax ) {
 
-# Get pids
-if( $q->{ajax} eq "getpids" ) {
-pids();
-$response{pids} = \%pids;
-print JSON->new->canonical(1)->encode(\%response);
-}
+	print "Content-type: application/json; charset=utf-8\r\n\r\n";
 
-sub pids
-{
-	$pids{'owserver'} = trim(`pgrep -f owserver`) ;
-	$pids{'owhttpd'} = trim(`pgrep -f owhttpd`) ;
-	$pids{'owfs2mqtt'} = trim(`pgrep -d , -f owfs2mqtt`) ;
-	return();
-}
+	# Get pids
+	if( $R::ajax eq "getpids" ) {
+		my $pid = trim(`pgrep -f frsmsimulator.py`);
+		print to_json( { response => $pid } );
+	}
+	
+	# Service Restart
+	if( $R::ajax eq "servicerestart" ) {
+		system("pkill -f frsmsimulator.py > /dev/null 2>&1");
+		sleep (1);
+		system("python $lbpbindir/frsmsimulator.py -h $lbhomedir > /dev/null 2>&1 &");
+		my $pid = trim(`pgrep -f frsmsimulator.py`);
+		print to_json( { response => $pid } );
+	}
+
+	exit;
 
 } else {
+
+# Wir initialisieren unser Template. Der Pfad zum Templateverzeichnis steht in der globalen Variable $lbptemplatedir.
+my $template = HTML::Template->new(
+    filename => "$lbptemplatedir/index.html",
+    global_vars => 1,
+    loop_context_vars => 1,
+    die_on_bad_params => 0,
+	associate => $cgi,
+);
+
+# Jetzt lassen wir uns die Sprachphrasen lesen. Ohne Pfadangabe wird im Ordner lang nach language_de.ini, language_en.ini usw. gesucht.
+# Wir kümmern uns im Code nicht weiter darum, welche Sprache nun zu lesen wäre.
+# Mit der Routine wird die Sprache direkt ins Template übernommen. Sollten wir trotzdem im Code eine brauchen, bekommen
+# wir auch noch einen Hash zurück.
+my %L = LoxBerry::Web::readlanguage($template, "language.ini");
+  
+
+# Wir Übergeben die Titelzeile (mit Versionsnummer), einen Link ins Wiki und das Hilfe-Template.
+# Um die Sprache der Hilfe brauchen wir uns im Code nicht weiter zu kümmern.
+LoxBerry::Web::lbheader("Sample Plugin for Perl V$version", "http://www.loxwiki.eu/x/2wN7AQ", "help.html");
+  
 
 # ---------------------------------------------------
 # Save settings to config file
