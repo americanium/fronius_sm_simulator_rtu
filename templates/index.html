@@ -82,20 +82,7 @@ function servicerestart()
 }
 </style>
 
-<div class="servicestatus">
-	<div>
-		Service Status:
-	</div>
-	<div class="status" id="servicestatus">
-		<TMPL_VAR CONFIGURATION.serviceUnknown>
-	</div>
-	<div>
-		<a href="#" onclick="servicerestart();return false;" class="ui-btn ui-icon-refresh ui-btn-icon-notext ui-corner-all">Refresh</a>
-	</div>
 
-</div>
-
-<br><br>
 
 <div class="wide">Fronius SmartMeter Simulator</div>
 
@@ -200,7 +187,20 @@ function servicerestart()
 </tr>
 </table>
 
-<TMPL_VAR PID> <TMPL_VAR STATUS>
+<div class="servicestatus">
+	<div>
+		Service Status:
+	</div>
+	<div class="status" id="servicestatus">
+		<TMPL_VAR CONFIGURATION.serviceUnknown>
+	</div>
+	<div>
+		<a href="#" onclick="servicerestart();return false;" class="ui-btn ui-icon-refresh ui-btn-icon-notext ui-corner-all">Refresh</a>
+	</div>
+
+</div>
+
+<br><br>
 
 <TMPL_VAR frmEnd>
 

@@ -28,6 +28,7 @@ import socket
 import signal
 import os
 
+
 # --------------------------------------------------------------------------- #
 # import the twisted libraries we need
 # --------------------------------------------------------------------------- #
@@ -49,8 +50,9 @@ outputs = None
 loglevel=logging.ERROR
 logfile=""
 logfileArg = ""
-lbhomedir = ""
+lbhomedir = os.popen("perl -e 'use LoxBerry::System; print $lbhomedir; exit;'").read()
 configfile = ""
+
 opts, args = getopt.getopt(sys.argv[1:], 'f:l:c:h:', ['logfile=', 'loglevel=', 'configfile=', 'lbhomedir='])
 for opt, arg in opts:
     if opt in ('-f', '--logfile'):
@@ -62,6 +64,7 @@ for opt, arg in opts:
         configfile=arg
     elif opt in ('-h', '--lbhomedir'):
         lbhomedir=arg
+
 
 # --------------------------------------------------------------------------- #
 # get configuration from mqtt broker and store config in mqttconf variable
@@ -157,9 +160,9 @@ mqttc.subscribe(MQTT_TOPIC_TOTAL_EXPORT)
 
 mqttc.loop_start()
 
-def terminateProcess(signalNumber, frame):
-    print('(SIGTERM) terminating the process')
-    StopServer()
+#def terminateProcess(signalNumber, frame):
+#    print('(SIGTERM) terminating the process')
+#    StopServer()
 
 def on_message(client, userdata, message):
     global leistung
@@ -304,7 +307,7 @@ def updating_writer(a):
 
     lock.release()
 
-    signal.signal(signal.SIGTERM,terminateProcess)
+ #   signal.signal(signal.SIGTERM,terminateProcess)
 
 def run_updating_server():
     # ----------------------------------------------------------------------- # 
