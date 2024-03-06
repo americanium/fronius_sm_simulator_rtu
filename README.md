@@ -13,14 +13,14 @@ The plugin simulates a Fronius Smart Meter in the Modbus RTU network. This means
 
 Installation
 ============
-Installation wie üblich als ZIP über die Loxberry Installationsroutine.
-Die Installation kann je nach verwendeten Pi bis zu 20 Minuten dauern
+Installation as usual as ZIP via the Loxberry installation routine.
+Installation can take up to 20 minutes depending on the Pi you are using
 
 Prerequisites
 =============
-Ein bereits vorhandener SmartMeter, welcher ausgelesen werden kann und dessen Daten via MQTT übertragen werden können.
-Ein Modbus Modul für den Raspberry
-Plugin "MQTT Gateway" muss installiert und konfiguriert sein.
+An existing SmartMeter that can be read and whose data can be transferred via MQTT.
+A Modbus module for the Raspberry
+The “MQTT Gateway” plugin must be installed and configured.
 
 Configuration
 =============
